@@ -404,5 +404,285 @@ int main() {
 ### 修改后的代码如下
 
 ```
+/*
+  同步队列设计要点
+    1.提供push get 函数
+    2.在get函数要注意避免虚假唤醒
+    3.get函数如果在线程池中使用，一定要设置退出标志，否则线程池无法Shutdown,原因
+    notify_all唤醒所有线程的时候，以下代码在队列为空的时候会一直调用wait导致无法退出线程池
+    while (deque_.empty()) {
+      cv_.wait(lk);
+    }
+*/
+#include <iostream>
+#include <deque>
+#include <mutex>
+#include <atomic>
+#include <condition_variable>
+#include <thread>
+
+template<typename T>
+class BlockDeque {
+ public:
+  BlockDeque() :size_(0),break_out_(false) {}
+  ~BlockDeque() { Breakout(); } 
+  size_t size() {return size_;}
+  void Push(const T& value) {
+    std::lock_guard<std::mutex> lk(mutex_);
+    deque_.push_back(value);  
+    size_++;
+    cv_.notify_one();
+  }
+  void Push(T&& value) {
+    std::lock_guard<std::mutex> lk(mutex_);
+    deque_.push_back(std::move(value)); 
+    size_++;
+    cv_.notify_one();  
+  }
+  bool Get(T& value) {
+    std::unique_lock<std::mutex> lk(mutex_);
+    if (break_out_) {
+      return false;
+    }
+    //避免虚假唤醒
+    while (deque_.empty()) {
+      cv_.wait(lk);
+      if (break_out_) { //用于退出队列
+        return false;
+      }
+    }
+    size_--;
+    value = deque_.front();
+    deque_.pop_front();
+    return true;
+  }
+  void Breakout() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    break_out_ = true;
+    cv_.notify_all();
+  }
+ public:
+  std::atomic<size_t> size_;
+  std::condition_variable cv_;
+  std::mutex mutex_;
+  std::deque<T> deque_;
+  bool break_out_; //退出标志
+};
+
+int main() {
+  BlockDeque<int> block_deque;
+  //模拟一个生产者线程 两个消费者线程
+  auto producer = [&]()->void {
+    for (auto i = 0; i < 10; i++){
+      block_deque.Push(i);
+      std::cout<<"produce produce task:"<<i<<std::endl;
+    }
+  };
+  auto consumer = [&](int index)->void{
+    while (true) {
+      int i;
+      block_deque.Get(i);
+      std::cout<<"consumer "<<index<<" consume task:"<<i<<std::endl;
+    }   
+  };
+  std::thread thread_consumer1(consumer, 1);
+  std::thread thread_consumer2(consumer, 2);
+  std::thread thread_produce(producer);
+
+  if (thread_produce.joinable())
+    thread_produce.join();
+  if (thread_consumer1.joinable())
+    thread_consumer1.join();
+  if (thread_consumer2.joinable())
+    thread_consumer2.join();
+  return 0;
+}
+```
+
+# 5.CountdownLatch的学习与使用
+
+    今天阅读陈硕muduo多线程设计精要，学习了CountDownLatch的使用，觉得在开发中有以下应用
+
+## 参考文章
+
+    1.muduo库
+
+    2.https://zhuanlan.zhihu.com/p/95835099
+
+## 应用场合
+
+1.在多线程编程中，主线程等待子线程初始化完成
+
+2.在高性能服务器交流群，看到有小伙伴提问
+
+![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-14-47-59-image.png)
+
+个人觉得，可以用以下思想，创建线程执行后台任务，前台调用wait阻塞，线程完成任务后调用countdown，当countdown为0是，通知主线程。
+
+## 完整代码
+
+头文件
 
 ```
+/*
+  实现countdown功能，参考muduo countdown
+  原理和应用：
+    https://zhuanlan.zhihu.com/p/95835099
+*/
+#include <cassert>
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
+class CountdownLatch {
+ public:
+  explicit CountdownLatch(int count = 1) 
+    : count_(count) { 
+      assert(count > 0); 
+    }
+  ~CountdownLatch() = default;
+  CountdownLatch(const CountdownLatch& other) = delete;
+  CountdownLatch& operator=(const CountdownLatch& other) = delete;
+
+  void Wait() {
+    std::unique_lock<std::mutex> lk(mutex_);
+    while (0 < count_)
+      cv_.wait(lk);
+  }
+
+  void CountDown() {
+    std::lock_guard<std::mutex> lk(mutex_);
+    count_--;
+    if (0 == count_) {
+      cv_.notify_all();
+    }
+  }
+
+  int GetCount() const {
+    std::lock_guard<std::mutex> lk(mutex_);
+    return count_;
+  }
+
+ private:
+  size_t count_;
+  mutable std::mutex mutex_; //在const修饰的函数使用，需要定义为mutable
+  std::condition_variable cv_;
+};
+```
+
+cpp
+
+```
+/*
+  模拟主线程等待 两个子线程初始化完成
+
+*/
+#include <functional>
+#include <iostream>
+#include "countdown_latch.h"
+
+int main() {
+  CountdownLatch coutdown_latch(2);
+  auto thread_func1 = [&](){
+    coutdown_latch.CountDown();
+    std::cout<<"thread 1 inited"<<std::endl;
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  };
+  auto thread_func2 = [&](){
+    coutdown_latch.CountDown();
+    std::cout<<"thread 2 inited"<<std::endl;
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  };
+  std::thread thread2(thread_func2);
+  std::thread thread1(thread_func1);
+  coutdown_latch.Wait(); //主线程等待子线程初始化完成
+  std::cout<<"all thread inited"<<std::endl;
+  while (true) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  return 0;
+}
+```
+
+## 运行效果
+
+![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-14-54-11-image.png)
+
+# 6 记一次多线程死锁调试过程
+
+注意点::在同一线程可重入，在多线程不可以重入
+
+下面代码在不同操作系统运行结果不一样
+
+```
+![](file:///Users/chen/Library/Application%20Support/marktext/images/2020-07-23-18-51-20-image.png)
+
+```
+
+std::mutex mutex;
+
+mutex.lock()
+
+mutex.lock()
+```
+```
+
+运行环境（gcc version 8.3.1 20190507 (Red Hat 8.3.1-4) (GCC)）：
+
+![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-18-49-20-image.png)
+
+std::mutex 在上述运行环境不会死锁，换句话来说，在同一线程内支持重入，找了好久都没找到原因，
+
+然后换了个环境调试（Apple clang version 11.0.3 (clang-1103.0.32.62)）
+
+![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-18-55-27-image.png)
+
+在clang调试，发现同样的代码在死锁，不同运行环境差距竟然这么大？日了狗了
+
+
+
+进入正题，死锁应该怎么调试呢，上代码
+
+```
+#include <stdio.h>
+#include <mutex>
+#include <thread>
+#include <iostream>
+
+std::mutex mutex;
+std::vector<Foo> foos;
+int main()
+{
+  auto func = [&](int index){
+    while(1)
+    {
+      mutex.lock();
+      std::cout<<"lock "<<std::endl;
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  };
+  std::thread thread1(func, 1);
+  std::thread thread2(func, 2);
+
+  thread1.join();
+  thread2.join();
+}
+```
+
+
+上诉代码在线程1 和线程2 对mutex重复上锁，不管在哪个操作系统，患无疑问都是死锁的，
+
+那么怎么用gdb调试呢
+
+1.先让程序跑起来
+
+![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-19-00-04-image.png)
+
+2.用gdb attch pid 然后bt看堆栈，因为是多线程程序，此时bt看不错什么所以然，多线程调试应该用info threads查看线程调用，此时可以清楚地看到线程2，3都在等锁，很明显是死锁了
+
+![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-19-01-49-image.png)
