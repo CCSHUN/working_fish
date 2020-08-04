@@ -621,7 +621,6 @@ int main() {
 
 ```
 ![](file:///Users/chen/Library/Application%20Support/marktext/images/2020-07-23-18-51-20-image.png)
-
 ```
 
 std::mutex mutex;
@@ -629,7 +628,9 @@ std::mutex mutex;
 mutex.lock()
 
 mutex.lock()
+
 ```
+
 ```
 
 运行环境（gcc version 8.3.1 20190507 (Red Hat 8.3.1-4) (GCC)）：
@@ -643,8 +644,6 @@ std::mutex 在上述运行环境不会死锁，换句话来说，在同一线程
 ![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-18-55-27-image.png)
 
 在clang调试，发现同样的代码在死锁，不同运行环境差距竟然这么大？日了狗了
-
-
 
 进入正题，死锁应该怎么调试呢，上代码
 
@@ -674,7 +673,6 @@ int main()
 }
 ```
 
-
 上诉代码在线程1 和线程2 对mutex重复上锁，不管在哪个操作系统，患无疑问都是死锁的，
 
 那么怎么用gdb调试呢
@@ -686,3 +684,129 @@ int main()
 2.用gdb attch pid 然后bt看堆栈，因为是多线程程序，此时bt看不错什么所以然，多线程调试应该用info threads查看线程调用，此时可以清楚地看到线程2，3都在等锁，很明显是死锁了
 
 ![](/Users/chen/Library/Application%20Support/marktext/images/2020-07-23-19-01-49-image.png)
+
+# 7.智能指针
+
+参考：
+
+    https://www.cnblogs.com/goya/p/11967200.html
+
+## 7.1enable_shared_from_this
+
+# 关于enable_shared_from_this的原理分析
+
+首先要说明的一个问题是：如何安全地将this指针返回给调用者。一般来说，我们不能直接将this指针返回。  
+想象这样的情况，该函数将this指针返回到外部某个变量保存，然后这个对象自身已经析构了，但外部变量并不知道，此时如果外部变量使用这个指针，就会使得程序崩溃。
+
+使用智能指针shared_ptr看起来是个不错的解决方法。但问题是如何去使用它呢？我们来看如下代码：
+
+```c++
+#include <iostream>
+#include <boost/shared_ptr.hpp>
+class Test
+{
+public:
+    //析构函数
+    ~Test() { std::cout << "Test Destructor." << std::endl; }
+    //获取指向当前对象的指针
+    boost::shared_ptr<Test> GetObject()
+    {
+        boost::shared_ptr<Test> pTest(this);
+        return pTest;
+    }
+};
+int main(int argc, char *argv[])
+{
+    {
+        boost::shared_ptr<Test> p( new Test( ));
+        std::cout << "q.use_count(): " << q.use_count() << std::endl; 
+        boost::shared_ptr<Test> q = p->GetObject();
+    }
+    return 0;
+}
+```
+
+运行后，程序输出：
+
+```c
+　　Test Destructor.
+　　q.use_count(): 1
+　　Test Destructor.
+```
+
+可以看到，对象只构造了一次，但却析构了两次。并且在增加一个指向的时候，shared_ptr的计数并没有增加。也就是说，这个时候，p和q都认为自己是Test指针的唯一拥有者，这两个shared_ptr在计数为0的时候，都会调用一次Test对象的析构函数，所以会出问题。  
+
+那么为什么会这样呢？给一个shared_ptr传递一个this指针难道不能引起shared_ptr的计数吗？
+
+答案是：对的，shared_ptr根本认不得你传进来的指针变量是不是之前已经传过。  
+
+看这样的代码：
+
+```c
+int main()
+{
+    Test* test = new Test();
+    shared_ptr<Test> p(test);
+    shared_ptr<Test> q(test);
+    std::cout << "p.use_count(): " << p.use_count() << std::endl;
+    std::cout << "q.use_count(): " << q.use_count() << std::endl;
+    return 0;
+}
+```
+
+运行后，程序输出：
+
+```c
+p.use_count(): 1
+q.use_count(): 1
+Test Destructor.
+Test Destructor.
+```
+
+也证明了刚刚的论述：shared_ptr根本认不得你传进来的指针变量是不是之前已经传过。
+
+事实上，类对象是由外部函数通过某种机制分配的，而且一经分配立即交给 shared_ptr管理，而且以后凡是需要共享使用类对象的地方，必须使用这个 shared_ptr当作右值来构造产生或者拷贝产生（shared_ptr类中定义了赋值运算符函数和拷贝构造函数）另一个shared_ptr ，从而达到共享使用的目的。  
+
+解释了上述现象后，现在的问题就变为了：**如何在类对象（Test）内部中获得一个指向当前对象的shared_ptr 对象？（之前证明，在类的内部直接返回this指针，或者返回return shared_ptr pTest(this);）不行，因为shared_ptr根本认不得你传过来的指针变量是不是之前已经传过，你本意传个shared_ptr pTest(this)是想这个对象use_count=2，就算this对象生命周期结束，但是也不delete，因为你异步回来还要用对象里面的东西。)**  
+如果我们能够做到这一点，直接将这个shared_ptr对象返回，就不会造成新建的shared_ptr的问题了。
+
+下面来看看enable_shared_from_this类的威力。  
+enable_shared_from_this 是一个以其派生类为模板类型参数的基类模板，继承它，派生类的this指针就能变成一个 shared_ptr。  
+有如下代码：
+
+```c++
+#include <iostream>
+#include <memory>
+
+class Test : public std::enable_shared_from_this<Test>        //改进1
+{
+public:
+    //析构函数
+    ~Test() { std::cout << "Test Destructor." << std::endl; }
+    //获取指向当前对象的指针
+    std::shared_ptr<Test> GetObject()
+    {
+        return shared_from_this();      //改进2
+    }
+};
+int main(int argc, char *argv[])
+{
+    {
+        std::shared_ptr<Test> p( new Test( ));
+        std::shared_ptr<Test> q = p->GetObject();
+        std::cout << "p.use_count(): " << p.use_count() << std::endl;
+        std::cout << "q.use_count(): " << q.use_count() << std::endl;
+    }
+    return 0;
+}
+```
+
+运行后，程序输出：
+
+```c
+    p.use_count(): 2
+    q.use_count(): 2
+    Test Destructor.
+```
+
+可以看到，问题解决了！

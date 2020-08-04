@@ -59,6 +59,11 @@
     "typeinfo": "cpp",
     "unordered_map": "cpp",
     "utility": "cpp",
-    "vector": "cpp"
+    "vector": "cpp",
+    "condition_variable": "cpp",
+    "deque": "cpp",
+    "thread": "cpp",
+    "future": "cpp",
+    "iomanip": "cpp"
   }
 }
