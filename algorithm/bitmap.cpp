@@ -10,6 +10,7 @@ class BitMap {
   BitMap(){}
   void set(int value);
   void clear(int value);
+  void clear();
   bool isSet(int value);
  private:
   long int bit_[SIZE]; 
@@ -23,6 +24,11 @@ void BitMap<SIZE>::set(int value) {
 template<int SIZE>
 void BitMap<SIZE>::clear(int value) {
   bit_[value / 64] &= ~(1<<(value % 64)); //置零
+} 
+
+template<int SIZE>
+void BitMap<SIZE>::clear() {
+  bzero(bit_, sizeof(bit_));
 } 
 
 template<int SIZE>
@@ -43,5 +49,8 @@ int main() {
   std::cout<<bit_map.isSet(64)<<std::endl; //1
   std::cout<<bit_map.isSet(65)<<std::endl; //0
   std::cout<<bit_map.isSet(66)<<std::endl; //0
+
+  bit_map.clear();
+  std::cout<<bit_map.isSet(64)<<std::endl; //0
   return 0;
 }
