@@ -831,14 +831,16 @@ int main(int argc, char *argv[])
 
     git push --set-upstream origin dev-1
 
-第五步：合并分支到master分支
-
-  
+第五步:切换到master分支
+	git checkout master	
+第六步：合并分支到master分支
+	git merge dev-1
+如果要冲突，根据具体情况解决冲突再提交
+	解决冲突
 
 <mark>备注</mark>  ：
-
+	分支合并 https://www.jianshu.com/p/26d050497abb
     分支删除操作参考：[Git 如何删除本地分支和远程分支 - 泽哥的学习笔记 - 博客园](https://www.cnblogs.com/caozhengze/p/11268293.html)
 
 
 
-222
