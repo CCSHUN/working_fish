@@ -810,3 +810,35 @@ int main(int argc, char *argv[])
 ```
 
 可以看到，问题解决了！
+
+# 8.记录一次分支开发的过程
+
+第一步：创建分支dev-1
+
+    git branch dev-1
+
+第二步：切换到分支dev-1
+
+    git checkout dev-1
+
+第三步：在分支上修改内容，然后
+
+    git add .
+
+    git commit -m "备注"
+
+第四步:推送到dev-1分支 （这里在一些场合好像没有必要）
+
+    git push --set-upstream origin dev-1
+
+第五步：合并分支到master分支
+
+  
+
+<mark>备注</mark>  ：
+
+    分支删除操作参考：[Git 如何删除本地分支和远程分支 - 泽哥的学习笔记 - 博客园](https://www.cnblogs.com/caozhengze/p/11268293.html)
+
+
+
+111
