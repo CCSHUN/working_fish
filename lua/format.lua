@@ -1,0 +1,1 @@
+print (string.format("the value is:%d",4)) -- 输出the value is:4

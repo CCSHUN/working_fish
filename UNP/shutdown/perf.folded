@@ -1,0 +1,4 @@
+a.out;[unknown];_IO_puts 1
+a.out;[unknown];__GI___libc_write;entry_SYSCALL_64_after_hwframe;do_syscall_64;ksys_write;vfs_write;tty_write;n_tty_write;pty_write;_raw_spin_unlock_irqrestore;arch_local_irq_restore 9
+a.out;[unknown];__nanosleep;entry_SYSCALL_64_after_hwframe;do_syscall_64;__do_sys_nanosleep;hrtimer_nanosleep;do_nanosleep;hrtimer_start_range_ns;_raw_spin_unlock_irqrestore;arch_local_irq_restore 1
+a.out;new_do_write 1

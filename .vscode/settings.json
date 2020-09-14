@@ -66,6 +66,11 @@
     "future": "cpp",
     "iomanip": "cpp",
     "__memory": "cpp",
-    "cerrno": "cpp"
+    "cerrno": "cpp",
+    "unordered_set": "cpp",
+    "__tree": "cpp",
+    "map": "cpp",
+    "queue": "cpp",
+    "__functional_03": "cpp"
   }
 }

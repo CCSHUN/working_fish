@@ -648,9 +648,9 @@ int main(int argc, char* argv[])
 
 ### 实验效果
 
-    SEND 1 代表客户端发送1字节代码（对应SEND 0字节实验）
+    SEND 0代表客户端发送0字节代码（对应SEND 0字节实验）
 
-    SEND 0 代表客户端发送0字节代码（对应SIGPIPE实验）
+    SEND 1代表客户端发送1字节代码（对应SIGPIPE实验）
 
 ----------------------------------------------------------------------------------------------
 
@@ -1450,8 +1450,6 @@ int main(int argc, char* argv[])
 
 <mark>注：以上行为，服务端、客户端反过来结果一样（已验证）</mark>
 
-
-
 ## 实验2：
 
      同样是实验1的代码，先关闭客户端，服务端保存运行
@@ -1467,8 +1465,6 @@ tcpdump没有抓到客户端的FIN包
 ![](/Users/chen/Library/Application%20Support/marktext/images/2020-08-08-14-08-45-image.png)
 
 为什么会有这种情况，原因是客户端发送缓冲区有数据  ，<mark>那么系统会发送这些数据，然后再发送FIN</mark>
-
-
 
 ## 实验3：
 
@@ -1616,10 +1612,6 @@ netstat 可以看到
 3.服务端发送了FIN,客户端接受缓冲区收到FIN，recv-Q字节数从3变成4
 
 ![](/Users/chen/Library/Application%20Support/marktext/images/2020-08-08-13-33-41-image.png)
-
-
-
-
 
 # 8.SO_LINGER选项
 
@@ -1903,7 +1895,7 @@ int main(int argc, char* argv[])
                 //记录一下最新的最大fd值，以便作为下一轮循环中select的第一个参数
                 if (clientfd > maxfd)
                     maxfd = clientfd;
-                
+
                 //接受连接后设置延时
                 sleep(30);
             } 
@@ -2043,6 +2035,35 @@ netstat可以看到客户端进入FIN_WAIT2状态
 
 大约30秒后，服务端开始接受数据，然后close客户端连接，
 
-tcpdump可以看到最后两次挥手，服务端发送 
+tcpdump可以看到最后两次挥手，服务端发送FIN,ACK, 客户端回复ACK,然后进入TIME_WAIT
 
-![](/Users/chen/Library/Application%20Support/marktext/images/2020-08-08-17-07-58-image.png)
+![](/Users/chen/Library/Application%20Support/marktext/images/2020-08-08-17-07-58-image.png)netstat可以看到客户端此时处于TIME_WAIT
+
+# 10.perf分析程序
+
+参考
+
+[如何读懂火焰图？ - 阮一峰的网络日志](http://www.ruanyifeng.com/blog/2017/09/flame-graph.html)
+
+[火焰图（Flame Graphs）的安装和基本用法 - 寒冰宇若 - 博客园](https://www.cnblogs.com/wx170119/p/11459995.html)
+
+    perf record -p 1803 -g -- sleep 5
+
+    perf script -i perf.data > perf.unfold
+
+    /data/FlameGraph/stackcollapse-perf.pl perf.unfold > perf.folded
+
+    /data/FlameGraph/flamegraph.pl perf.folded > perf.svg
+
+# 11.epoll
+
+## 11.1 epoll各事件掩码值
+
+EPOLLIN:1  
+EPOLLOUT:4  
+EPOLLRDHUP:8192  
+EPOLLPRI:2  
+EPOLLERR:8  
+EPOLLHUP:16  
+EPOLLET:-2147483648  
+EPOLLONESHOT:1073741824
