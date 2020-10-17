@@ -842,7 +842,29 @@ int main(int argc, char *argv[])
     分支合并 https://www.jianshu.com/p/26d050497abb
     分支删除操作参考：[Git 如何删除本地分支和远程分支 - 泽哥的学习笔记 - 博客园](https://www.cnblogs.com/caozhengze/p/11268293.html)
 
+    
 
+## 8.1新建开发分支并推送到远程开发分支
+
+    第一步：创建分支dev-1
+
+git branch dev-1
+
+第二步：切换到分支dev-1
+
+git checkout dev-1
+
+第三步：在分支上修改内容，然后
+
+git add .
+
+git commit -m "备注"
+
+第四步:推送到chenchangshun-dev分支(git push <远程主机名> <本地分支名>:<远程分支名>)
+
+git push  origin chenchangshun-dev:chenchangshun-dev    
+
+    
 
 # 9.(惊魂一刻)记一次git修改文件权限导致所有文件提示需要提交的过程
 
