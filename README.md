@@ -832,15 +832,53 @@ int main(int argc, char *argv[])
     git push --set-upstream origin dev-1
 
 第五步:切换到master分支
-	git checkout master	
+    git checkout master    
 第六步：合并分支到master分支
-	git merge dev-1
+    git merge dev-1
 如果要冲突，根据具体情况解决冲突再提交
-	解决冲突
+    解决冲突111
 
 <mark>备注</mark>  ：
-	分支合并 https://www.jianshu.com/p/26d050497abb
+    分支合并 https://www.jianshu.com/p/26d050497abb
     分支删除操作参考：[Git 如何删除本地分支和远程分支 - 泽哥的学习笔记 - 博客园](https://www.cnblogs.com/caozhengze/p/11268293.html)
 
+    
 
+## 8.1新建开发分支并推送到远程开发分支
 
+    第一步：创建分支dev-1
+
+git branch dev-1
+
+第二步：切换到分支dev-1
+
+git checkout dev-1
+
+第三步：在分支上修改内容，然后
+
+git add .
+
+git commit -m "备注"
+
+第四步:推送到chenchangshun-dev分支(git push <远程主机名> <本地分支名>:<远程分支名>)
+
+git push  origin chenchangshun-dev:chenchangshun-dev    
+
+    
+
+# 9.(惊魂一刻)记一次git修改文件权限导致所有文件提示需要提交的过程
+
+过程是这样的，我对git目录执行了chmod R 777 ，然后导致该目录所有文件都需要提交，接近两万个，其中包含了我修改的文件，差点吓死
+
+好在git config可以忽略文件模式，
+
+命令是这样的，只对当前版本生效即可
+
+    git config core.fileMode false
+
+---所有操作如下
+
+$ git config core.filemode false // 当前版本库
+$
+
+ git config --global core.fileMode false // 所有版本库

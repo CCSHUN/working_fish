@@ -4,7 +4,8 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/Users/chen/project/myproject/opt/usr/include/hiredis"
+                "/Users/chen/project/myproject/opt/usr/include/hiredis",
+                "/Users/chen/project/myproject/third_party/protobuf/include"
             ],
             "defines": [],
             "macFrameworkPath": [
